@@ -1,7 +1,15 @@
 """Main application window."""
 
 from __future__ import annotations
+import sys
+from pathlib import Path
 
+# Get the exact absolute path of the folder containing app.py
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+# Force Python to look in app.py's folder for modules FIRST
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 import customtkinter as ctk
 
 try:
@@ -132,3 +140,6 @@ class SDVEngineeringConsole(ctk.CTk):
         """Hook for future STM32 disconnection handler."""
         self.connection_state.disconnect_stm32()
         self.platform.state.set_service_flags(stm32=False)
+if __name__ == "__main__":
+    app = SDVEngineeringConsole()
+    app.mainloop()
