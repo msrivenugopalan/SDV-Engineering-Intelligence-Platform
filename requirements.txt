@@ -1,0 +1,10 @@
+customtkinter>=5.2.0
+flask>=3.0.0
+speechrecognition>=3.10.0
+pyttsx3>=2.90
+pyaudio>=0.2.14
+
+# Optional — only needed for a real MQTT broker (sdv_console/services/mqtt_bridge.py).
+# The app runs fine without it: MQTTBridge detects the missing package/host and stays
+# gracefully idle instead of crashing.
+paho-mqtt>=1.6.1
