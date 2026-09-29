@@ -8,17 +8,17 @@ from sdv_console.config import APP_TITLE, APP_VERSION, COLORS
 
 class Header(ctk.CTkFrame):
     def __init__(self, master, platform, **kwargs) -> None:
-        super().__init__(master, fg_color=COLORS["bg_secondary"], corner_radius=0, height=64, **kwargs)
+        super().__init__(master, fg_color="#17191E", corner_radius=0, height=38, **kwargs)
         self.platform = platform
         self.pack_propagate(False)
 
         left = ctk.CTkFrame(self, fg_color="transparent")
-        left.pack(side="left", padx=20, pady=8)
-        ctk.CTkLabel(left, text=APP_TITLE, font=ctk.CTkFont(family="Segoe UI", size=17, weight="bold"), text_color=COLORS["text_primary"]).pack(anchor="w")
-        ctk.CTkLabel(left, text="Intelligent Software-Defined Vehicle Engineering Platform", font=ctk.CTkFont(size=10), text_color=COLORS["text_muted"]).pack(anchor="w")
+        left.pack(side="left", padx=10, pady=4)
+        ctk.CTkLabel(left, text="▣", font=ctk.CTkFont(size=19, weight="bold"), text_color=COLORS["accent"]).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(left, text=APP_TITLE, font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"), text_color=COLORS["text_primary"]).pack(side="left")
 
         right = ctk.CTkFrame(self, fg_color="transparent")
-        right.pack(side="right", padx=20)
+        right.pack(side="right", padx=12)
         self._fields: dict[str, tuple[ctk.CTkLabel, ctk.CTkLabel]] = {}
         for key, label in [("gateway", "GATEWAY"), ("stm32", "STM32"), ("can", "CAN"), ("firmware", "FIRMWARE"), ("clock", "UPTIME")]:
             col = ctk.CTkFrame(right, fg_color="transparent")

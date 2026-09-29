@@ -10,8 +10,24 @@ import customtkinter as ctk
 from sdv_console.config import COLORS, STATUS_COLORS
 
 
+STATUS_MARK = {
+    "HEALTHY": "●",
+    "WARNING": "⚠",
+    "FAULT": "✖",
+    "RECOVERING": "↻",
+    "OFFLINE": "○",
+    "RUNNING": "●",
+    "DEGRADED": "⚠",
+}
+
+
 def status_color(status: str) -> str:
     return STATUS_COLORS.get(status, COLORS["text_muted"])
+
+
+def status_mark(status: str) -> str:
+    glyph = STATUS_MARK.get(status, "●")
+    return f"{glyph} {status}"
 
 
 def format_uptime(started_iso: str) -> str:

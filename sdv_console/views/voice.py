@@ -16,6 +16,11 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     sr = None
 
+try:
+    import sounddevice as sd
+except Exception:  # pragma: no cover - optional dependency
+    sd = None
+
 from sdv_console.components.widgets import caption, section_title
 from sdv_console.config import COLORS
 
@@ -47,7 +52,7 @@ class VoiceView(ctk.CTkFrame):
         self._speak_btn = ctk.CTkButton(entry_row, text="🔊 Speak Reply", width=120, height=36, command=self._speak_reply)
         self._speak_btn.pack(side="left", padx=(0, 16))
 
-        self._status = ctk.CTkLabel(entry_row, text="Voice ready", font=ctk.CTkFont(size=10), text_color=COLORS["text_muted"])
+        self._status = ctk.CTkLabel(entry_row, text="READY", font=ctk.CTkFont(size=10), text_color=COLORS["text_muted"])
         self._status.pack(side="left", padx=(0, 16))
 
         reply_card = ctk.CTkFrame(self, fg_color=COLORS["bg_card"], corner_radius=10)
@@ -68,13 +73,20 @@ class VoiceView(ctk.CTkFrame):
             return
 
         self._entry.delete(0, "end")
-        reply = self.platform.handle_voice(prompt)
+        self._set_status("EXECUTING")
+        try:
+            reply = self.platform.handle_voice(prompt)
+        except Exception as exc:
+            self._reply.configure(text=f"Command failed: {exc}")
+            self._set_status("ERROR")
+            return
         self._reply.configure(text=reply)
+        self._set_status("RESPONSE READY")
         self._speak_reply(reply)
 
     def _listen_and_send(self) -> None:
-        if sr is None:
-            self._set_status("Speech recognition package is not installed.")
+        if sr is None or sd is None:
+            self._set_status("ERROR: Speech or microphone package is unavailable.")
             return
 
         if self._busy:
@@ -82,54 +94,76 @@ class VoiceView(ctk.CTkFrame):
 
         self._busy = True
         self._listen_btn.configure(state="disabled")
-        self._set_status("Listening… speak now")
+        self._set_status("LISTENING: speak now (up to 6 seconds)")
         threading.Thread(target=self._capture_audio, daemon=True).start()
 
     def _capture_audio(self) -> None:
         try:
             recognizer = sr.Recognizer()
-            recognizer.dynamic_energy_threshold = True
-            with sr.Microphone() as source:
-                audio = recognizer.listen(source, phrase_time_limit=10, timeout=8)
-            try:
-                text = recognizer.recognize_google(audio)
-            except Exception:
-                text = ""
-
+            device = sd.query_devices(kind="input")
+            sample_rate = int(device["default_samplerate"])
+            block_size = 1024
+            frames_remaining = sample_rate * 6
+            chunks = []
+            with sd.RawInputStream(
+                samplerate=sample_rate,
+                channels=1,
+                dtype="int16",
+                blocksize=block_size,
+            ) as stream:
+                while frames_remaining:
+                    frame_count = min(block_size, frames_remaining)
+                    chunk, _overflowed = stream.read(frame_count)
+                    chunks.append(chunk)
+                    frames_remaining -= frame_count
+            audio = sr.AudioData(b"".join(chunks), sample_rate, 2)
+            self.after(0, lambda: self._set_status("PROCESSING: recognizing speech"))
+            text = recognizer.recognize_google(audio)
             self.after(0, lambda: self._handle_voice_result(text))
         except Exception as exc:
-            self.after(0, lambda: self._handle_voice_result("", exc))
+            self.after(0, lambda error=exc: self._handle_voice_result("", error))
 
     def _handle_voice_result(self, text: str, error: Exception | None = None) -> None:
         self._busy = False
         self._listen_btn.configure(state="normal")
 
         if error is not None:
-            self._set_status(f"Listening error: {error}")
+            if sr is not None and isinstance(error, sr.UnknownValueError):
+                self._set_status("ERROR: Speech was unintelligible.")
+            elif sr is not None and isinstance(error, sr.RequestError):
+                self._set_status(f"ERROR: Speech recognition unavailable: {error}")
+            else:
+                self._set_status(f"ERROR: Microphone capture failed: {error}")
             return
 
         if not text:
-            self._set_status("No speech detected. Please try again.")
+            self._set_status("ERROR: No speech detected. Please try again.")
             return
 
-        self._set_status("Voice command captured")
+        self._entry.delete(0, "end")
+        self._entry.insert(0, text)
+        self._set_status("RECOGNIZED")
         self._send(text)
 
     def _speak_reply(self, text: str | None = None) -> None:
         if pyttsx3 is None:
+            self._set_status("ERROR: Text-to-speech package is unavailable.")
             return
 
         speech_text = (text or self._reply.cget("text") or "").strip()
         if not speech_text:
             return
 
+        threading.Thread(target=self._speak_in_background, args=(speech_text,), daemon=True).start()
+
+    def _speak_in_background(self, speech_text: str) -> None:
         try:
             engine = pyttsx3.init()
             engine.setProperty("rate", 175)
             engine.say(speech_text)
             engine.runAndWait()
         except Exception:
-            self._set_status("Voice playback failed")
+            self.after(0, lambda: self._set_status("ERROR: Voice playback failed."))
 
     def refresh(self) -> None:
         log = self.platform.snapshot()["voice_log"]

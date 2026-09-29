@@ -150,7 +150,7 @@ switch + service status)
   to real firmware needs a command channel on the STM32/ESP32 side that
   doesn't exist yet. Everything *reading* from hardware (telemetry, ECU
   status, CAN frames, events) is fully wired.
-- Voice is typed-only; no speech recognition is included.
+- Voice supports typed commands and microphone input through SpeechRecognition and sounddevice, with optional spoken replies through pyttsx3.
 - ARI is deliberately rule-based/templated, not an LLM — per the
   architecture doc's explicit requirement that it never invent a vehicle
   condition.

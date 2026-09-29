@@ -28,7 +28,7 @@ class EngineeringPlatform:
         self.state.set_service(sqlite=self.history.ready)
 
         self.ari = ARIService(self.state, self.events)
-        self.voice = VoiceService(self.state, self.ari)
+        self.voice = VoiceService(self.state, self.ari, self.inject_fault, self.start_recovery)
         self.ota_service = OTAService(self.state, self.events, self.history)
 
         self.sim = SimulationAdapter(self.state, self.events)

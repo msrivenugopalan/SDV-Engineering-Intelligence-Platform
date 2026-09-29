@@ -8,18 +8,40 @@ user into a rigid command list.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from typing import Any
 
+from sdv_console.config import ECU_CATALOG, FAULT_CATALOG
 from sdv_console.core.vehicle_state import VehicleState
 from sdv_console.services.ari import ARIService
 
 ECU_ALIASES = {
     "battery": "battery",
+    "battery ecu": "battery",
+    "battery controller": "battery",
+    "battery control unit": "battery",
     "motor": "engine",
+    "motor ecu": "engine",
+    "motor controller": "engine",
+    "motor control unit": "engine",
     "engine": "engine",
+    "engine ecu": "engine",
     "brake": "brake",
+    "brake ecu": "brake",
     "steering": "steering",
+    "steering ecu": "steering",
     "climate": "climate",
+    "climate ecu": "climate",
     "adas": "adas",
+    "adas ecu": "adas",
+}
+
+FAULT_TYPES = {
+    "over_temperature": ("over temperature", "overtemp", "overheating", "too hot", "temperature"),
+    "sensor_failure": ("sensor failure", "sensor fault", "sensor failed"),
+    "communication_loss": ("communication loss", "comm loss", "lost communication"),
+    "sensor_drift": ("sensor drift", "drifting sensor"),
+    "sensor_blocked": ("sensor blocked", "blocked sensor"),
 }
 
 TELEMETRY_ALIASES = {
@@ -39,9 +61,17 @@ TELEMETRY_ALIASES = {
 
 
 class VoiceService:
-    def __init__(self, state: VehicleState, ari: ARIService) -> None:
+    def __init__(
+        self,
+        state: VehicleState,
+        ari: ARIService,
+        inject_fault: Callable[[str], dict[str, Any]] | None = None,
+        start_recovery: Callable[[str], dict[str, Any]] | None = None,
+    ) -> None:
         self.state = state
         self.ari = ari
+        self.inject_fault = inject_fault
+        self.start_recovery = start_recovery
 
     def handle(self, utterance: str) -> str:
         text = (utterance or "").strip()
@@ -49,6 +79,35 @@ class VoiceService:
             return "Say a question or command about the vehicle system."
 
         query = self._normalize(text)
+        if self._matches(query, ["aging", "prediction", "predictive", "thermal model"]):
+            return self._fallback_response(query)
+        command = self._interpret(query)
+        intent = command["intent"]
+
+        if intent == "inject_fault":
+            return self._inject_fault(command["target"], command["entities"].get("fault_type"), query)
+        if intent == "recover_ecu":
+            return self._recover_ecu(command["target"])
+        if intent == "start_diagnostics":
+            return "Starting a diagnostics run is not currently implemented. I can report existing diagnostic records with 'show diagnostics' or 'show active faults'."
+        if intent == "active_faults":
+            return self._fault_summary()
+        if intent == "can_status":
+            return self._can_summary()
+        if intent == "ota_status":
+            return self._ota_summary()
+        if intent == "vehicle_health":
+            return self.ari.explain_current_state()
+        if intent == "battery_status":
+            return self._battery_summary()
+        if intent == "ecu_status":
+            if command["target"]:
+                return self._ecu_summary(command["target"])
+            return self._all_ecu_summary()
+        if intent == "diagnostics_status":
+            return self._diagnostic_summary()
+        if intent == "clarify_temperature":
+            return "Which temperature should I check: battery, motor, or cabin?"
 
         if self._matches(query, ["help", "what can you do", "commands", "capabilities"]):
             return self._help_text()
@@ -104,9 +163,151 @@ class VoiceService:
 
     def _help_text(self) -> str:
         return (
-            "I can answer questions about live vehicle health, ECU status, active faults, CAN bus, OTA progress, diagnostics, "
-            "recent events, firmware versions, and current system services. Try asking for battery voltage, engine temperature, "
-            "details for a specific ECU, or a general system summary."
+            "Supported: show vehicle health, battery or ECU status, active faults, CAN status, OTA status, diagnostics, or recent events; "
+            "inject a catalog-supported ECU fault; or recover a faulted ECU. A new diagnostics run is not implemented."
+        )
+
+    def _interpret(self, query: str) -> dict[str, Any]:
+        ecu = self._find_ecu(query)
+        target = ecu or self._unknown_ecu(query)
+        result = {"intent": "question", "target": target, "entities": {}, "confidence": 0.55}
+
+        if self._matches(query, ["recover", "recovery"]):
+            result.update(intent="recover_ecu", confidence=0.96)
+            return result
+
+        if self._matches(query, ["inject", "simulate", "trigger", "create fault", "raise fault", "put", "into a fault"]):
+            fault_type = self._find_fault_type(query)
+            result.update(intent="inject_fault", entities={"fault_type": fault_type}, confidence=0.96 if target and fault_type else 0.65)
+            return result
+
+        if self._matches(query, ["start diagnostics", "run diagnostics", "run diagnostic", "start diagnostic"]):
+            result.update(intent="start_diagnostics", confidence=0.96)
+            return result
+        if self._matches(query, ["show active fault", "active fault", "faults", "vehicle for faults", "dtc"]):
+            result.update(intent="active_faults", confidence=0.94)
+            return result
+        if self._matches(query, ["can status", "can bus", "bus status", "communication status"]):
+            result.update(intent="can_status", confidence=0.94)
+            return result
+        if self._matches(query, ["ota status", "firmware update status", "deployment status"]):
+            result.update(intent="ota_status", confidence=0.94)
+            return result
+        if self._matches(query, ["show diagnostics", "diagnostic records", "diagnostic status", "fault codes"]):
+            result.update(intent="diagnostics_status", confidence=0.92)
+            return result
+        if self._matches(query, ["vehicle health", "system health", "overall health", "vehicle status", "system summary"]):
+            result.update(intent="vehicle_health", confidence=0.94)
+            return result
+        if target == "battery" and self._matches(query, ["status", "health", "how is", "how s", "information", "details", "doing", "about"]):
+            result.update(intent="battery_status", target="battery", confidence=0.92)
+            return result
+        if target and self._matches(query, ["status", "health", "details", "information", "show", "about"]):
+            result.update(intent="ecu_status", confidence=0.9)
+            return result
+        if self._matches(query, ["ecu status", "current ecu status", "all ecu"]):
+            result.update(intent="ecu_status", target=None, confidence=0.88)
+            return result
+        if self._matches(query, ["temperature", "temp"]):
+            result.update(intent="clarify_temperature", confidence=0.55)
+        return result
+
+    def _find_fault_type(self, query: str) -> str | None:
+        for fault_type, phrases in FAULT_TYPES.items():
+            if self._matches(query, list(phrases)):
+                return fault_type
+        return None
+
+    def _fault_type_for_ecu(self, ecu_id: str) -> str | None:
+        fault_id = FAULT_CATALOG.get(ecu_id, {}).get("fault_id", "").lower()
+        if "temp" in fault_id:
+            return "over_temperature"
+        if "sensor_fail" in fault_id:
+            return "sensor_failure"
+        if "comm" in fault_id:
+            return "communication_loss"
+        if "drift" in fault_id:
+            return "sensor_drift"
+        if "blocked" in fault_id:
+            return "sensor_blocked"
+        return None
+
+    def _unknown_ecu(self, query: str) -> str | None:
+        match = re.search(r"\b([a-z]+)\s+(?:ecu|controller)\b", query)
+        if not match:
+            return None
+        candidate = match.group(1)
+        return None if candidate in ECU_ALIASES else candidate
+
+    def _inject_fault(self, ecu_id: str | None, fault_type: str | None, query: str) -> str:
+        if ecu_id and ecu_id not in {ecu["id"] for ecu in ECU_CATALOG}:
+            return f"The {ecu_id} ECU is not supported by this console."
+        if not ecu_id:
+            return "Which ECU should I target? For example, Battery ECU or Motor ECU."
+        if not fault_type:
+            if self._has_unrecognized_fault_detail(query):
+                return "That fault type is not in the implemented fault catalog."
+            return "Which supported fault should I inject? For example, battery over-temperature or motor over-temperature."
+        spec = FAULT_CATALOG.get(ecu_id)
+        if not spec or self._fault_type_for_ecu(ecu_id) != fault_type:
+            return f"That fault is not supported for the {self._ecu_label(ecu_id)}."
+        if self.inject_fault is None:
+            return "Fault injection is not available through the current application platform."
+        try:
+            result = self.inject_fault(ecu_id)
+        except Exception as exc:
+            return f"Unable to inject the fault because the fault service failed: {exc}"
+        if not result.get("ok"):
+            detail = result.get("detail") or result.get("error") or "unknown service error"
+            return f"Unable to inject the fault: {detail}."
+        return f"{spec['label']} fault injected successfully ({result.get('fault_id', spec['fault_id'])})."
+
+    def _has_unrecognized_fault_detail(self, query: str) -> bool:
+        remaining = query
+        for alias in sorted(ECU_ALIASES, key=len, reverse=True):
+            remaining = re.sub(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", " ", remaining)
+        ignored = {
+            "inject", "simulate", "trigger", "create", "raise", "put", "set", "the", "a", "an",
+            "into", "for", "of", "fault", "ecu", "controller", "control", "unit", "on", "to", "please",
+        }
+        return any(word not in ignored for word in remaining.split())
+
+    def _recover_ecu(self, ecu_id: str | None) -> str:
+        if ecu_id and ecu_id not in {ecu["id"] for ecu in ECU_CATALOG}:
+            return f"The {ecu_id} ECU is not supported by this console."
+        if not ecu_id:
+            return "Which ECU should I recover? For example, Battery ECU or Motor ECU."
+        if self.start_recovery is None:
+            return "ECU recovery is not available through the current application platform."
+        try:
+            result = self.start_recovery(ecu_id)
+        except Exception as exc:
+            return f"Unable to start recovery because the recovery service failed: {exc}"
+        if not result.get("ok"):
+            detail = result.get("detail") or result.get("error") or "unknown service error"
+            return f"Unable to recover the {self._ecu_label(ecu_id)}: {detail}."
+        return f"Recovery started for the {self._ecu_label(ecu_id)}."
+
+    def _ecu_label(self, ecu_id: str) -> str:
+        return next((ecu["name"] for ecu in ECU_CATALOG if ecu["id"] == ecu_id), ecu_id)
+
+    def _all_ecu_summary(self) -> str:
+        ecus = self.state.snapshot()["ecus"]
+        return "; ".join(
+            f"{ecu['name']}: {ecu['status']}, health {ecu['health']}%"
+            for ecu in ecus.values()
+        ) + "."
+
+    def _battery_summary(self) -> str:
+        snap = self.state.snapshot()
+        ecu = snap["ecus"].get("battery")
+        if not ecu:
+            return "Battery ECU state is not available."
+        telemetry = snap["telemetry"]
+        return (
+            f"Battery ECU is {ecu['status'].lower()} with health at {ecu['health']}%. "
+            f"State of charge is {telemetry.get('battery_soc', 'unavailable')}%, "
+            f"voltage is {telemetry.get('battery_voltage', 'unavailable')} V."
         )
 
     def _find_ecu(self, query: str) -> str | None:
@@ -129,7 +330,9 @@ class VoiceService:
         return False
 
     def _normalize(self, text: str) -> str:
-        return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+        normalized = re.sub(r"[^a-z0-9]+", " ", text.lower())
+        normalized = re.sub(r"\b(?:please|um|uh|hey)", " ", normalized)
+        return re.sub(r"\s+", " ", normalized).strip()
 
     def _metric_summary(self, metric: str) -> str:
         snap = self.state.snapshot()
@@ -274,13 +477,9 @@ class VoiceService:
         )
 
     def _fallback_response(self, query: str) -> str:
-        if "what" in query or "why" in query or "how" in query:
-            return (
-                f"I can answer this using the live system state. Right now the console reports: {self._system_summary()}. "
-                "Ask me about a specific ECU, telemetry value, fault, CAN bus, OTA update, diagnostics, or recent events."
-            )
-
+        if self._matches(query, ["aging", "prediction", "predictive", "thermal model"]):
+            return "I recognize that as an SDV engineering capability, but battery aging prediction is not currently implemented in this console."
         return (
-            f"I’m ready to help with the live SDV system. Current status: {self._system_summary()} "
-            "You can ask about battery, engine, brake, steering, climate, ADAS, CAN, OTA, diagnostics, or recent events."
+            "That command is outside the SDV Engineering Console capabilities. Supported examples: show vehicle health, battery status, "
+            "active faults, CAN status, OTA status, diagnostics, recent events, inject a supported fault, or recover a faulted ECU."
         )

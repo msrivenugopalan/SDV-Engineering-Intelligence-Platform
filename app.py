@@ -39,12 +39,12 @@ class ConsoleApp(ctk.CTk):
 
         # 1. Instantiate self.content FIRST
         self.content = ContentPanel(body, self.platform)
-        self.content.pack(fill="both", expand=True, side="right")
 
         # 2. Instantiate self.sidebar SECOND
         self.sidebar = Sidebar(body, on_navigate=self._navigate)
         self.sidebar.pack(fill="y", side="left")
 
+        self.content.pack(fill="both", expand=True, side="right")
         self.status_bar = StatusBar(self, self.platform)
         self.status_bar.pack(fill="x", side="bottom")
 
