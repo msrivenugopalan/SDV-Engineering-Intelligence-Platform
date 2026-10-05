@@ -65,7 +65,11 @@ class HistoryService:
                     target_ecu TEXT,
                     from_version TEXT,
                     to_version TEXT,
-                    result TEXT
+                    result TEXT,
+                    details TEXT,
+                    package_type TEXT,
+                    update_type TEXT,
+                    security_level TEXT
                 );
                 CREATE TABLE IF NOT EXISTS voice_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +81,10 @@ class HistoryService:
                 CREATE INDEX IF NOT EXISTS idx_events_ecu ON events(ecu);
                 """
             )
+            columns = {row[1] for row in self._conn.execute("PRAGMA table_info(ota_history)").fetchall()}
+            for column in ("details", "package_type", "update_type", "security_level"):
+                if column not in columns:
+                    self._conn.execute(f"ALTER TABLE ota_history ADD COLUMN {column} TEXT")
             self._conn.commit()
 
     def _on_event(self, event: VehicleEvent) -> None:
@@ -87,11 +95,31 @@ class HistoryService:
             )
             self._conn.commit()
 
-    def insert_ota(self, target_ecu: str, from_version: str, to_version: str, result: str) -> None:
+    def insert_ota(
+        self,
+        target_ecu: str,
+        from_version: str,
+        to_version: str,
+        result: str,
+        details: dict | None = None,
+        package_type: str | None = None,
+        update_type: str | None = None,
+        security_level: str | None = None,
+    ) -> None:
         with self._lock:
             self._conn.execute(
-                "INSERT INTO ota_history(timestamp, target_ecu, from_version, to_version, result) VALUES (?, ?, ?, ?, ?)",
-                (datetime.now(timezone.utc).isoformat(), target_ecu, from_version, to_version, result),
+                "INSERT INTO ota_history(timestamp, target_ecu, from_version, to_version, result, details, package_type, update_type, security_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    datetime.now(timezone.utc).isoformat(),
+                    target_ecu,
+                    from_version,
+                    to_version,
+                    result,
+                    json.dumps(details or {}),
+                    package_type,
+                    update_type,
+                    security_level,
+                ),
             )
             self._conn.commit()
 
@@ -121,4 +149,12 @@ class HistoryService:
     def query_ota(self, limit: int = 20) -> list[dict]:
         with self._lock:
             rows = self._conn.execute("SELECT * FROM ota_history ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
-            return [dict(r) for r in rows]
+            out: list[dict] = []
+            for row in rows:
+                item = dict(row)
+                try:
+                    item["details"] = json.loads(item.get("details") or "{}")
+                except json.JSONDecodeError:
+                    item["details"] = {}
+                out.append(item)
+            return out

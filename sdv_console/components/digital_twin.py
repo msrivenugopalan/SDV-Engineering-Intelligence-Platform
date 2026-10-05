@@ -338,7 +338,14 @@ class DigitalTwin(ctk.CTkFrame):
         ]
         self._poly(body, fill=BODY_FILL, outline=body_line, width=2)
 
-        # Belt line / 3D thickness
+        # Faceted body planes give the shell volume without obscuring live modules.
+        self._poly([(202, 326), (218, 294), (294, 241), (362, 235), (319, 290), (220, 326)], fill="#102B43", outline="#1B4E73", width=1)
+        self._poly([(319, 290), (362, 235), (432, 240), (430, 300), (350, 310)], fill="#0C2237", outline="#17476B", width=1)
+        self._poly([(560, 247), (644, 238), (752, 291), (767, 329), (562, 318)], fill="#102A41", outline="#1B4E73", width=1)
+        self._poly([(213, 355), (772, 355), (772, 381), (207, 381)], fill="#071523", outline="#17415F", width=1)
+        self._line([(222, 360), (760, 360)], fill="#286186", width=1)
+
+        # Belt line / body thickness
         self._line([(210, 292), (248, 248), (338, 168), (368, 168)], fill=WIRE_SOFT, width=1)
         self._line([(640, 168), (678, 164), (728, 238), (768, 292)], fill=WIRE_SOFT, width=1)
         self._line([(778, 338), (792, 288)], fill=WIRE_SOFT, width=1)
@@ -348,12 +355,24 @@ class DigitalTwin(ctk.CTkFrame):
         self._poly(windshield, fill=WINDOW_FILL, outline=WIRE, width=1)
         roof_glass = [(462, 178), (632, 178), (700, 244), (438, 244)]
         self._poly(roof_glass, fill=WINDOW_FILL, outline=WIRE, width=1)
+        self._poly([(314, 239), (372, 184), (410, 184), (389, 239)], fill="#0D2942", outline="")
+        self._poly([(470, 185), (625, 185), (670, 234), (452, 236)], fill="#0A2035", outline="")
+        self._line([(476, 189), (615, 189)], fill="#24608A", width=1)
+        self._line([(310, 247), (428, 247)], fill="#5BC5FF", width=1)
         self._line([(430, 246), (438, 244)], fill=WIRE, width=1)
         # door cuts
         self._line([(430, 246), (430, 378)], fill=WIRE_SOFT, width=1)
         self._line([(560, 244), (560, 378)], fill=WIRE_SOFT, width=1)
         self._line([(206, 338), (772, 338)], fill=WIRE_SOFT, width=1)
-
+        self._line([(452, 287), (492, 287)], fill="#68C9FF", width=2)
+        self._line([(585, 287), (625, 287)], fill="#68C9FF", width=2)
+        self._line([(480, 295), (480, 300)], fill="#8AD8FF", width=2)
+        self._line([(613, 295), (613, 300)], fill="#8AD8FF", width=2)
+        # Hood and rear-quarter highlight facets.
+        self._line([(222, 292), (286, 264), (350, 255)], fill="#4B9AC6", width=1)
+        self._line([(650, 255), (711, 273), (758, 300)], fill="#4B9AC6", width=1)
+        self._line([(224, 349), (285, 352), (330, 349)], fill="#286186", width=1)
+        self._line([(646, 350), (710, 350), (760, 345)], fill="#286186", width=1)
 
         # Technical body scaffold. These fine lines make the body read as a
         # transparent engineering model while keeping the silhouette restrained.
@@ -368,10 +387,14 @@ class DigitalTwin(ctk.CTkFrame):
         self._line([(628, 190), (575, 300)], fill="#1A527C", width=1)
         self._line([(442, 262), (548, 262)], fill="#235E89", width=1)
         self._line([(456, 271), (535, 271)], fill="#164D76", width=1)
-        # Headlamp / tail
-        self._poly([(198, 328), (218, 318), (218, 348), (200, 352)], fill="#8FD4FF", outline=WIRE, width=1)
-        self._oval(208, 334, 18, 10, fill="", outline="#8FD4FF", width=1)
+        # Front fascia and lighting create a visible front-facing plane.
+        self._poly([(198, 323), (211, 316), (222, 325), (220, 358), (207, 365), (197, 354)], fill="#102A40", outline=WIRE_SOFT, width=1)
+        self._poly([(198, 328), (216, 321), (218, 332), (201, 338)], fill="#9DE2FF", outline=WIRE, width=1)
+        self._poly([(201, 348), (219, 343), (218, 355), (205, 360)], fill="#17415F", outline=WIRE_SOFT, width=1)
+        self._line([(200, 363), (222, 356)], fill="#6CCEFF", width=2)
+        self._oval(208, 334, 13, 7, fill="", outline="#8FD4FF", width=1)
         self._poly([(760, 322), (778, 318), (778, 350), (760, 352)], fill="#E74C3C", outline="#C0392B", width=1)
+        self._line([(764, 326), (776, 323)], fill="#FF9C83", width=1)
 
         # Mirror / A-pillar
         self._poly([(292, 246), (278, 238), (286, 228), (304, 236)], fill=BODY_FILL, outline=WIRE, width=1)
@@ -442,9 +465,23 @@ class DigitalTwin(ctk.CTkFrame):
 
     def _draw_wheel(self, x: float, y: float, r: float, far: bool) -> None:
         rim = WIRE_SOFT if far else WIRE
-        self._oval(x, y, r, r * 0.92, fill="#05080C", outline=rim, width=2)
-        self._oval(x, y, r * 0.55, r * 0.5, fill="#0C1520", outline=rim, width=1)
-        self._oval(x, y, r * 0.18, r * 0.16, fill=WIRE, outline="")
+        tire = "#03070C" if far else "#050A11"
+        self._oval(x + 3, y + 4, r, r * 0.92, fill="#02050A", outline="")
+        self._oval(x, y, r, r * 0.92, fill=tire, outline=rim, width=2)
+        self._oval(x, y, r * 0.72, r * 0.68, fill="#101D2A", outline="#34749A" if not far else rim, width=1)
+        self._oval(x, y, r * 0.48, r * 0.45, fill="#0A1520", outline=rim, width=1)
+        for angle in range(0, 360, 60):
+            radians = math.radians(angle)
+            inner = r * 0.16
+            outer = r * 0.62
+            self._line(
+                [(x + math.cos(radians) * inner, y + math.sin(radians) * inner * 0.92),
+                 (x + math.cos(radians) * outer, y + math.sin(radians) * outer * 0.92)],
+                fill="#65BDEB" if not far else "#286186",
+                width=2 if not far else 1,
+            )
+        self._oval(x, y, r * 0.17, r * 0.16, fill="#BCEBFF" if not far else WIRE, outline="")
+        self._oval(x - r * 0.22, y - r * 0.31, r * 0.08, r * 0.06, fill="#B6E7FF", outline="")
 
     def _draw_iso_cube(self, x: float, y: float, color: str, selected: bool) -> tuple[int, ...]:
         s = 11 if self._compact else 14

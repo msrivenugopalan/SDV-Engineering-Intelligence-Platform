@@ -1,5 +1,8 @@
 """All constants live here — one place to retune the whole console."""
 
+import hashlib
+import os
+
 APP_TITLE = "SDV ENGINEERING CONSOLE"
 APP_VERSION = "1.0.0"
 WINDOW_WIDTH = 1520
@@ -17,6 +20,11 @@ MQTT_HOST = None  # set to a broker host to enable MQTT (paho-mqtt optional dep)
 MQTT_PORT = 1883
 MQTT_TOPIC_TELEMETRY = "sdv/esp32/telemetry"
 MQTT_TOPIC_EVENTS = "sdv/esp32/events"
+
+# Prototype OTA authorization. Keep the PIN hash out of source control by setting
+# SDV_OTA_PIN_HASH in the environment. The default value below is a development-only
+# hash of "4321" and should be overridden in real deployments.
+OTA_PIN_HASH = os.getenv("SDV_OTA_PIN_HASH") or hashlib.sha256(b"4321").hexdigest()
 
 COLORS = {
     "bg_primary": "#0A0E14",

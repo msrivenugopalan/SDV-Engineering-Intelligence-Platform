@@ -76,6 +76,21 @@ class OTASession:
     started_at: str | None = None
     finished_at: str | None = None
     from_version: str | None = None
+    update_type: str = "FULL"
+    package_type: str = "full"
+    package_size: int = 0
+    delta_size: int = 0
+    integrity_verified: bool = False
+    authenticity_verified: bool = False
+    compatibility_verified: bool = False
+    rollback_available: bool = False
+    last_known_good_version: str | None = None
+    feature_changes: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    security_level: str = "DEMO_PROTOTYPE"
+    authentication_status: str = "REQUIRED"
+    rollback_status: str = "IDLE"
+    last_error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

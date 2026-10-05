@@ -60,6 +60,13 @@ class VehicleState:
         self._connection_label = "Disconnected"
         self._paused = False
         self._firmware = "v1.0.0"
+        self._last_known_good_version = "v1.0.0"
+        self._firmware_history: list[dict[str, Any]] = [{
+            "version": self._firmware,
+            "status": "ACTIVE",
+            "timestamp": utc_now_iso(),
+            "details": {"source": "initialization"},
+        }]
         self._uptime_started = utc_now_iso()
 
         self._ecus: dict[str, ECUState] = {
@@ -211,6 +218,26 @@ class VehicleState:
             self._firmware = version
             self._touch()
 
+    def set_last_known_good_version(self, version: str) -> None:
+        with self._lock:
+            self._last_known_good_version = version
+            self._touch()
+
+    def get_last_known_good_version(self) -> str:
+        with self._lock:
+            return self._last_known_good_version
+
+    def add_firmware_history(self, version: str, status: str, **details: Any) -> None:
+        with self._lock:
+            self._firmware_history.insert(0, {
+                "version": version,
+                "status": status,
+                "timestamp": utc_now_iso(),
+                "details": details,
+            })
+            self._firmware_history = self._firmware_history[:25]
+            self._touch()
+
     def set_recovery(self, session: RecoverySession) -> None:
         with self._lock:
             self._recovery = session
@@ -258,6 +285,8 @@ class VehicleState:
                 "connection_label": self._connection_label,
                 "paused": self._paused,
                 "firmware": self._firmware,
+                "last_known_good_version": self._last_known_good_version,
+                "firmware_history": list(self._firmware_history),
                 "uptime_started": self._uptime_started,
                 "ecus": {k: v.to_dict() for k, v in self._ecus.items()},
                 "overall_health": self._overall_health(),

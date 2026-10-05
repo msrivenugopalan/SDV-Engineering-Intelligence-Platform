@@ -79,10 +79,10 @@ class EngineeringPlatform:
     def start_recovery(self, ecu_id: str) -> dict[str, Any]:
         return self.active_source().start_recovery(ecu_id)
 
-    def start_ota(self, target_ecu: str, target_version: str) -> dict[str, Any]:
+    def start_ota(self, target_ecu: str, target_version: str, requested_by: str = "engineering-demo", role: str = "engineering", pin: str | None = None) -> dict[str, Any]:
         if self.ota_service.busy:
             return {"ok": False, "error": "ota_in_progress"}
-        return self.ota_service.start(target_ecu, target_version)
+        return self.ota_service.start(target_ecu, target_version, requested_by=requested_by, role=role, pin=pin)
 
     def handle_voice(self, utterance: str) -> str:
         reply = self.voice.handle(utterance)
