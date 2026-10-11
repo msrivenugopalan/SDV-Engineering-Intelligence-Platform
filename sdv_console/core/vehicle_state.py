@@ -120,15 +120,22 @@ class VehicleState:
         with self._lock:
             self._services.update(flags)
             self._touch()
-
+    
     def update_telemetry(self, values: dict[str, Any], source: str = "simulation") -> None:
         with self._lock:
-            self._telemetry.update(values)
-            for key in self._history:
-                v = self._telemetry.get(key)
-                if isinstance(v, (int, float)):
-                    self._history[key].append(float(v))
-            self._touch()
+         self._telemetry.update(values)
+
+        # Record history only for fields received in this update.
+         for key in self._history:
+            if key not in values:
+                continue
+
+            value = values[key]
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                self._history[key].append(float(value))
+
+         self._touch()
+
 
     def update_ecu(self, ecu_id: str, **fields: Any) -> None:
         with self._lock:

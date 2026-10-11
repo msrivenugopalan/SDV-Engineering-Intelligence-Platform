@@ -17,7 +17,7 @@ from sdv_console.services.history import HistoryService
 from sdv_console.services.mqtt_bridge import MQTTBridge
 from sdv_console.services.ota import OTAService
 from sdv_console.services.voice import VoiceService
-
+from sdv_console.services.serial_bridge import SerialBridge
 
 class EngineeringPlatform:
     def __init__(self) -> None:
@@ -36,16 +36,32 @@ class EngineeringPlatform:
 
         self.mqtt = MQTTBridge(self.state, self.events)
         self.mqtt.on_hardware_message = self.hardware.ingest
+        self.serial_bridge = SerialBridge(
+            on_telemetry=self._handle_serial_telemetry,
+            port="COM9",
+            baudrate=115200,
+        )
+    def _handle_serial_telemetry(self, message: dict[str, Any]) -> None:
+      """Forward valid STM32 telemetry into the existing vehicle state."""
+      self.hardware.ingest(message)
 
+      if self.state.mode != "HARDWARE":
+        result = self.set_mode("HARDWARE")
+        if result.get("ok"):
+            print("[SDV] STM32 telemetry received; HARDWARE mode activated.")
+        else:
+            print(f"[SDV] Could not activate HARDWARE mode: {result}")
     def start(self) -> None:
-        self.sim.start()
-        self.mqtt.start()
+       self.sim.start()
+       self.mqtt.start()
+       self.serial_bridge.start()
 
     def shutdown(self) -> None:
-        self.sim.stop()
-        self.hardware.stop()
-        self.mqtt.stop()
-        self.history.close()
+      self.serial_bridge.stop()
+      self.sim.stop()
+      self.hardware.stop()
+      self.mqtt.stop()
+      self.history.close()
 
     def active_source(self):
         return self.hardware if self.state.mode == "HARDWARE" else self.sim

@@ -13,7 +13,7 @@ MIN_WINDOW_HEIGHT = 760
 TICK_MS = 250  # central state / UI refresh cadence
 TELEMETRY_HISTORY_POINTS = 120  # ~30s of rolling history at TICK_MS
 
-REST_HOST = "127.0.0.1"
+REST_HOST = "0.0.0.0"
 REST_PORT = 5050
 
 MQTT_HOST = None  # set to a broker host to enable MQTT (paho-mqtt optional dep)

@@ -119,11 +119,32 @@ class VehicleOverviewView(ctk.CTkFrame):
         self._health_status.configure(text=health, text_color=status_color(health))
         self._metrics["speed"].set(f"{tel.get('vehicle_speed', 0):.1f}")
         self._metrics["soc"].set(f"{tel.get('battery_soc', 0):.1f}", color=COLORS["success"] if tel.get("battery_soc", 0) > 30 else COLORS["error"])
-        self._metrics["range"].set(f"{tel.get('estimated_range', 0):.0f}")
-        self._metrics["power"].set(f"{tel.get('battery_power', 0):.1f}")
+        range_value = tel.get("estimated_range")
+        power_value = tel.get("battery_power")
+        self._metrics["range"].set(
+            f"{range_value:.0f}"
+            if isinstance(range_value, (int, float))
+            else "—"
+        )
+        self._metrics["power"].set(
+            f"{power_value:.1f}"
+            if isinstance(power_value, (int, float))
+            else "—"
+        )
 
-        online = sum(1 for e in snap["ecus"].values() if e["status"] != "OFFLINE")
-        self._health_meta.configure(text=f"Faults {len(snap['active_faults'])}   ECUs online {online}/6\nUptime {format_uptime(snap['uptime_started'])}   State {tel.get('vehicle_state', '—')}")
+        online = sum(
+           1 for e in snap["ecus"].values()
+           if e["status"] != "OFFLINE"
+        )
+        vehicle_state = tel.get("vehicle_state") or "—"
+        self._health_meta.configure(
+             text=(
+                 f"Faults {len(snap['active_faults'])}   "
+                 f"ECUs online {online}/6\n"
+                 f"Uptime {format_uptime(snap['uptime_started'])}   "
+                 f"State {vehicle_state}"
+                )
+        )
 
         fw = snap["firmware"]
         ota = snap["ota"]

@@ -6,7 +6,12 @@ this file never touches VehicleState, an adapter, or a service directly.
 """
 
 from __future__ import annotations
+import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 import customtkinter as ctk
 
 from sdv_console.components.content import ContentPanel
@@ -69,8 +74,11 @@ class ConsoleApp(ctk.CTk):
         self.after(TICK_MS, self._tick)
 
     def _on_close(self) -> None:
-        self.platform.shutdown()
-        self.destroy()
+        # Always close the window, even if a background service reports an error.
+        try:
+            self.platform.shutdown()
+        finally:
+            self.destroy()
 
 
 if __name__ == "__main__":
