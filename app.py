@@ -17,7 +17,6 @@ import customtkinter as ctk
 from sdv_console.components.content import ContentPanel
 from sdv_console.components.header import Header
 from sdv_console.components.sidebar import Sidebar
-from sdv_console.components.status_bar import StatusBar
 from sdv_console.config import APP_TITLE, COLORS, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, TICK_MS, WINDOW_HEIGHT, WINDOW_WIDTH
 from sdv_console.platform import EngineeringPlatform
 
@@ -50,8 +49,7 @@ class ConsoleApp(ctk.CTk):
         self.sidebar.pack(fill="y", side="left")
 
         self.content.pack(fill="both", expand=True, side="right")
-        self.status_bar = StatusBar(self, self.platform)
-        self.status_bar.pack(fill="x", side="bottom")
+        
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -69,7 +67,6 @@ class ConsoleApp(ctk.CTk):
     def _tick(self) -> None:
         self.platform.tick(TICK_MS / 1000.0)
         self.header.refresh()
-        self.status_bar.refresh()
         self.content.refresh_active()
         self.after(TICK_MS, self._tick)
 

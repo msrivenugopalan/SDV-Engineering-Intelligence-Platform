@@ -58,7 +58,7 @@ def create_app(platform: Any) -> Flask:
         body = request.get_json(silent=True)
         if not isinstance(body, dict):
             return jsonify({"ok": False, "error": "expected a JSON object body"}), 400
-        platform.hardware.ingest(body)
+        platform.hardware.ingest(body, transport="esp32")
         return jsonify({"ok": True})
 
     return app

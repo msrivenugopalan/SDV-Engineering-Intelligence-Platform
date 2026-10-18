@@ -199,14 +199,29 @@ class VehicleState:
 
     def add_diagnostic(self, record: DiagnosticRecord) -> None:
         with self._lock:
-            self._diagnostics = [d for d in self._diagnostics if not (d.ecu == record.ecu and d.status == "ACTIVE")]
+            # Replace only the same active diagnostic, not unrelated faults
+            # recorded for this ECU.
+            self._diagnostics = [
+                d for d in self._diagnostics
+                if not (
+                    d.ecu == record.ecu
+                    and d.fault_id == record.fault_id
+                    and d.status == "ACTIVE"
+                )
+            ]
             self._diagnostics.insert(0, record)
             self._touch()
 
-    def clear_diagnostic(self, ecu: str) -> None:
+    def clear_diagnostic(
+        self, ecu: str, fault_id: str | None = None
+    ) -> None:
         with self._lock:
             for d in self._diagnostics:
-                if d.ecu == ecu and d.status == "ACTIVE":
+                if (
+                    d.ecu == ecu
+                    and d.status == "ACTIVE"
+                    and (fault_id is None or d.fault_id == fault_id)
+                ):
                     d.status = "CLEARED"
                     d.cleared_at = utc_now_iso()
             self._touch()

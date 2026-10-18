@@ -23,7 +23,8 @@ class StatusBar(ctk.CTkFrame):
         disconnected_label = "NOT LINKED" if snap["mode"] == "HARDWARE" else "SIM"
         text = (
             f"CAN \u25CF {can['bus_state']}   {can['messages_per_sec']:.0f} msg/s   {can['error_count']} errors   "
-            f"STM32 \u25CF {'LINKED' if svc['stm32'] else disconnected_label}   ESP32 \u25CF {'LINKED' if svc['esp32'] else disconnected_label}   "
+            f"STM32 \u25CF {'LINKED' if svc['stm32'] else 'NOT LINKED'}   "
+            f"ESP32 \u25CF {'LINKED' if svc['esp32'] else 'NOT LINKED'}   "
             f"MQTT \u25CF {'UP' if svc['mqtt'] else 'IDLE'}   REST \u25CF {'RUNNING' if svc['rest'] else 'STOPPED'}   "
             f"SQLite \u25CF {'READY' if svc['sqlite'] else 'DOWN'}   UP {format_uptime(snap['uptime_started'])}"
         )

@@ -35,7 +35,11 @@ class EngineeringPlatform:
         self.hardware = HardwareAdapter(self.state, self.events)
 
         self.mqtt = MQTTBridge(self.state, self.events)
-        self.mqtt.on_hardware_message = self.hardware.ingest
+        self.mqtt.on_hardware_message = (
+            lambda message: self.hardware.ingest(
+                message, transport="mqtt"
+            )
+        )
         self.serial_bridge = SerialBridge(
             on_telemetry=self._handle_serial_telemetry,
             port="COM9",
@@ -78,16 +82,41 @@ class EngineeringPlatform:
 
     # ------------------------------------------------------------ actions --
 
+    
     def set_mode(self, mode: str) -> dict[str, Any]:
         if mode == "HARDWARE" and not self.hardware.connected:
-            return {"ok": False, "error": "hardware_unavailable", "detail": "STM32/ESP32 are not linked yet. Send data to POST /hardware/ingest first."}
+            return {
+                "ok": False,
+                "error": "hardware_unavailable",
+                "detail": (
+                    "STM32/ESP32 are not linked yet. "
+                    "Send data to POST /hardware/ingest first."
+                ),
+            }
+
         if mode == "SIMULATION":
             self.sim.start()
+            self.state.set_mode(
+                "SIMULATION", "Simulation", source="console"
+            )
         elif mode == "DISCONNECTED":
             self.sim.stop()
+            self.state.set_mode(
+                "DISCONNECTED", "Disconnected", source="console"
+            )
+        elif mode == "HARDWARE":
+            self.state.set_mode(
+                "HARDWARE", "Hardware", source="console"
+            )
         else:
-            self.state.set_mode(mode, "Hardware", source="console")
+            return {
+                "ok": False,
+                "error": "invalid_mode",
+                "detail": f"Unsupported mode: {mode}",
+            }
+
         return {"ok": True, "mode": self.state.mode}
+
 
     def inject_fault(self, ecu_id: str) -> dict[str, Any]:
         return self.active_source().inject_fault(ecu_id)
